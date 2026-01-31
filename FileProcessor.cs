@@ -1,6 +1,9 @@
 ﻿namespace StaticWebAssetToolingLibrary;
 public class FileProcessor(IStaticWebAssetSpec resolver, params BasicList<string> args)
 {
+
+    
+
     public async Task ProcessAsync()
     {
         Console.WriteLine("Start Using File Tooling Library");
@@ -14,6 +17,18 @@ public class FileProcessor(IStaticWebAssetSpec resolver, params BasicList<string
         string projectDirectory = args[1];
         string projectFile = args[2];
         string wwwrootPath = Path.Combine(projectDirectory, "wwwroot");
+
+
+        string NormalizeFullPath(string candidate)
+        {
+            // If candidate already looks like a rooted path, trust it.
+            if (Path.IsPathRooted(candidate))
+                return candidate;
+
+            // Otherwise, treat it as relative to wwwrootPath
+            return Path.Combine(wwwrootPath, candidate);
+        }
+
         if (ff1.DirectoryExists(wwwrootPath) == false)
         {
             Console.WriteLine("There was no wwwroot folder");
@@ -34,19 +49,18 @@ public class FileProcessor(IStaticWebAssetSpec resolver, params BasicList<string
 
             var ext = Path.GetExtension(item).ToLowerInvariant();
             if (resolver.ExtensionsAllowed.Contains(ext) == false)
+            {
                 continue;
+            }
 
             // Full path to file (your wrapper’s behavior matters, but this matches what you were doing)
-            string fullPath = ff1.FullFile(item);
+            string fullPath = NormalizeFullPath(item);
 
             // Relative path under wwwroot (this is the key to correct _content URLs)
             string relativeUnderWwwroot = Path.GetRelativePath(wwwrootPath, fullPath)
                 .Replace('\\', '/');
 
-            // Optional: if you ONLY want wwwroot/images, enforce it here
-            // (recommended if this tool is for images)
-            if (relativeUnderWwwroot.StartsWith("images/", StringComparison.OrdinalIgnoreCase) == false)
-                continue;
+            
 
             // Key used in registry / const name (your old behavior)
             // If you want key == filename without extension:
@@ -56,15 +70,16 @@ public class FileProcessor(IStaticWebAssetSpec resolver, params BasicList<string
             string url = $"/_content/{GlobalConstants.ProjectName}/{relativeUnderWwwroot}";
 
             FileClass file = new();
-            file.FullName = fullPath;
-            file.ClassName = key;  // use key, not FileName(item), so DB keys match
-            file.ResolvedPath = url;       // <-- THIS is the resolved value you were missing
+            file.Name = ff1.FileName(item);
+            file.ResolvedPath = $"""
+                "{url}"
+                """;
 
             files.Add(file);
         }
         if (files.Count == 0)
         {
-            Console.WriteLine("There was no files");
+            Console.WriteLine($"There was no files found at {wwwrootPath}");
             return;
         }
         string assetFolder = Path.Combine(projectDirectory, "Assets");
